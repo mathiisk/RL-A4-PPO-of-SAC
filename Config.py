@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+
+@dataclass
 class PPOConfig:
     total_steps: int = 1_000_000
     num_envs: int = 8

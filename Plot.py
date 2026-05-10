@@ -25,9 +25,9 @@ def plot_from_jsons(json_paths, selected_labels=None, title="Comparison", out="c
 
             params = entry["params"]
             timesteps = list(range(
-                params["evaluate_every"],
-                params["total_steps"] + 1,
-                params["evaluate_every"],
+                params.get("evaluate_every", params.get("eval_every", 10_000)),
+                params.get("total_steps", 1_000_000) + 1,
+                params.get("evaluate_every", params.get("eval_every", 10_000)),
             ))
 
             mean = np.array(entry["mean_returns"])
