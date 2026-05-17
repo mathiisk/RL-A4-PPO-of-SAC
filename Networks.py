@@ -44,4 +44,3 @@ class ValueNetwork(nn.Module):
 
     def forward(self, x):
         return self.net(x).squeeze(-1)
-

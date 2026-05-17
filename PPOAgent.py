@@ -3,7 +3,6 @@ import gymnasium as gym
 import torch
 import torch.optim as optim
 from torch.distributions import Categorical
-
 from Networks import PolicyNetwork, ValueNetwork
 
 
@@ -13,7 +12,7 @@ class RolloutBuffer:
         self.num_envs = num_envs
         self.device = device
         self.gamma = gamma
-        self.gae_lambda = gae_lambda
+        self.gae_lambda = gae_lambda # gae smoothing
 
         # pre-allocate storage on CPU
         self.states   = torch.zeros(n_steps, num_envs, obs_dim)
@@ -37,13 +36,15 @@ class RolloutBuffer:
         self.step += 1
 
     def compute_advantages(self, last_value):
+        # delta(t) = r(t) + gamma * V(s_{t+1}) * (1-done) - V(s_t)    TD error
+        # A(t)     = delta(t) + gamma * lambda * (1-done) * A(t+1)    smoothed over future steps
         last_value = last_value.cpu().detach()
         advantages = torch.zeros_like(self.rewards)
         last_adv   = torch.zeros(self.num_envs)
 
         for t in reversed(range(self.n_steps)):
             if t == self.n_steps - 1:
-                next_non_terminal = 1.0 - self.dones[t]
+                next_non_terminal = 1.0 - self.dones[t] # if episode ended, cut future
                 next_value        = last_value
             else:
                 next_non_terminal = 1.0 - self.dones[t]
@@ -54,21 +55,21 @@ class RolloutBuffer:
             advantages[t] = last_adv
 
         self.advantages = advantages
-        self.returns    = advantages + self.values
+        self.returns    = advantages + self.values # target for value networl
 
     def get_minibatches(self, minibatch_size):
-        N = self.n_steps * self.num_envs
+        N = self.n_steps * self.num_envs # flatten all envs and steps into one list
 
         states    = self.states.view(N, -1).to(self.device)
         actions   = self.actions.view(N).to(self.device)
         log_probs = self.log_probs.view(N).to(self.device)
         returns   = self.returns.view(N).to(self.device)
 
-        # normalise advantages over the whole buffer for training stability
+        # normalise advantages to mean=0 std=1 for stable magnitudes
         adv = self.advantages.view(N).to(self.device)
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
-        indices = torch.randperm(N, device=self.device)
+        indices = torch.randperm(N, device=self.device) # shuffle
         for start in range(0, N, minibatch_size):
             idx = indices[start : start + minibatch_size]
             yield (states[idx], actions[idx], log_probs[idx], returns[idx], adv[idx])
@@ -92,16 +93,16 @@ class PPOAgent:
         self.steps_done = 0
 
     def select_action(self, state, greedy=False):
-        probs = self.policy_net(state)
+        probs = self.policy_net(state) # pi(a|s)
         dist  = Categorical(probs)
 
-        if greedy:
+        if greedy: # determensitic for eval
             action = probs.argmax(dim=-1)
             return action, None, None
 
         action   = dist.sample()
-        log_prob = dist.log_prob(action)
-        value    = self.value_net(state)
+        log_prob = dist.log_prob(action) # log pi(a|s), stored for PPO ratio later
+        value    = self.value_net(state) # V(s), stored for GAE later
         return action, log_prob, value
 
     def update(self, buffer):
@@ -114,14 +115,14 @@ class PPOAgent:
                 probs     = self.policy_net(states)
                 dist      = Categorical(probs)
                 log_probs = dist.log_prob(actions)
-                entropy   = dist.entropy().mean()
+                entropy   = dist.entropy().mean() # penalized in loss to encourage exploration
                 values    = self.value_net(states)
 
-                # clipped surrogate loss
+                # ratio = pi_new(a|s) / pi_old(a|s), in log space for numerical stability
                 ratio = torch.exp(log_probs - old_log_probs)
                 surr1 = ratio * advantages
                 surr2 = torch.clamp(ratio, 1 - cfg.clip_eps, 1 + cfg.clip_eps) * advantages
-                actor_loss = -torch.min(surr1, surr2).mean()
+                actor_loss = -torch.min(surr1, surr2).mean() # clip prevents too-large policy updates
 
                 # value loss
                 critic_loss = torch.nn.functional.mse_loss(values, returns)
@@ -199,7 +200,7 @@ def train_PPO(params, device):
             buffer.add(states, actions, rewards, dones, values, log_probs)
 
             agent.steps_done += params.num_envs
-            states = torch.tensor(obs, dtype=torch.float32, device=device)  # FIX: was torch.floar32
+            states = torch.tensor(obs, dtype=torch.float32, device=device)
 
             if agent.steps_done % params.evaluate_every < params.num_envs:
                 ret = agent.evaluate(eval_env, eval_episodes=params.eval_episodes)
@@ -215,5 +216,5 @@ def train_PPO(params, device):
         agent.update(buffer)
 
     env.close()
-    eval_env.close()                                        # FIX: was eval_env.close (missing call parens)
+    eval_env.close()
     return eval_returns

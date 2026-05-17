@@ -41,4 +41,3 @@ def smooth(y, window, poly=2):
     y: vector to be smoothed
     window: size of the smoothing window '''
     return savgol_filter(y,window,poly)
-

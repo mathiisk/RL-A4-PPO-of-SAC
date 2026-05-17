@@ -8,19 +8,19 @@ class PPOConfig:
     eval_episodes: int = 10
     
     # rollout buffer
-    n_steps: int = 128 # steps collected per env before an update one rollout = n_steps * num_envs transitions
+    n_steps: int = 256 # steps collected per env before an update one rollout = n_steps * num_envs transitions
     
     # ppo updates
-    n_epochs: int = 4
+    n_epochs: int = 8
     minibatch_size: int = 256
-    clip_eps: float = 0.2
+    clip_eps: float = 0.1
     entropy_coef: float = 0.01
     value_coef: float = 0.5
     
     gamma: float = 0.99
     gae_lambda: float = 0.95
     
-    lr: float = 3e-4
+    lr: float = 1e-3
     max_grad_norm: float = 0.5
     
     hidden_size: int = 64

@@ -18,7 +18,6 @@ ABLATION = {"total_steps": 500_000, "num_rep": 3}
 RESULTS_DIR = "results"
 
 
-
 def train_one_run(agent_name, params, device):
     if agent_name == "PPO":
         return train_PPO(params, device)
@@ -93,7 +92,7 @@ def run_experiment(experiments, base_params, device, title, save_name):
     print(f"Saved → {plot_path}  |  {json_path}")
 
 
-# Main experiments
+# main experiments
 def exp_ppo(base_params, device):
     run_experiment(
         [{"label": "PPO", "agent_name": "PPO", "params": {}}],
@@ -143,21 +142,45 @@ def exp_ablation_ppo_nsteps(base_params, device):
        save_name="ablation_ppo_nsteps")
  
  
+def exp_ablation_ppo_entropy(base_params, device):
+    run_experiment([
+        {"label": "ent=0.0",  "agent_name": "PPO", "params": {**ABLATION, "entropy_coef": 0.0}},
+        {"label": "ent=0.01", "agent_name": "PPO", "params": {**ABLATION, "entropy_coef": 0.01}},
+        {"label": "ent=0.05", "agent_name": "PPO", "params": {**ABLATION, "entropy_coef": 0.05}},
+    ], base_params, device,
+       title="PPO Entropy Coefficient Ablation",
+       save_name="ablation_ppo_entropy")
+
+
+def exp_ppo_recovers_a2c(base_params, device):
+    run_experiment([
+        {"label": "PPO (K=8, clip=0.2)", "agent_name": "PPO",
+         "params": {**ABLATION, "n_epochs": 8, "clip_eps": 0.2}},
+        {"label": "K=1, clip=0.2",       "agent_name": "PPO",
+         "params": {**ABLATION, "n_epochs": 1, "clip_eps": 0.2}},
+        {"label": "A2C-like (K=1, no clip)", "agent_name": "PPO",
+         "params": {**ABLATION, "n_epochs": 1, "clip_eps": 10.0}},
+    ], base_params, device,
+       title="PPO Recovers A2C",
+       save_name="ppo_recovers_a2c") 
+ 
+
 def exp_all_ablations(base_params, device):
     exp_ablation_ppo_clip(base_params, device)
     exp_ablation_ppo_epochs(base_params, device)
     exp_ablation_ppo_lr(base_params, device)
     exp_ablation_ppo_nsteps(base_params, device)
-
+    exp_ablation_ppo_entropy(base_params, device)
 
 
 EXPERIMENTS = {
-    # Main
     "exp_ppo":          exp_ppo,
     "abl_ppo_clip":     exp_ablation_ppo_clip,
     "abl_ppo_epochs":   exp_ablation_ppo_epochs,
     "abl_ppo_lr":       exp_ablation_ppo_lr,
     "abl_ppo_nsteps":   exp_ablation_ppo_nsteps,
+    "abl_ppo_entropy":  exp_ablation_ppo_entropy,
+    "ppo_recovers_a2c": exp_ppo_recovers_a2c,
     "all_ablations":    exp_all_ablations,
 }
 

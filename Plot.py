@@ -32,8 +32,6 @@ def plot_from_jsons(json_paths, selected_labels=None, title="Comparison", out="c
 
             mean = np.array(entry["mean_returns"])
             std = np.array(entry["std_returns"])
-
-            # trim timesteps to match curve length (in case of early stopping)
             timesteps = timesteps[:len(mean)]
 
             if smoothing_window is not None and len(mean) > smoothing_window:
